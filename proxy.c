@@ -34,6 +34,8 @@ int main(int argc, char **argv)
 	   fprintf(stderr, "Usage: %s <port number>\n", argv[0]);
 	   exit(0);
     }
+    //call Fopen for our logfile
+    logfile = Fopen("proxy.log") //todo mode?
     //port number from input
     port = atoi(argv[1]);
 
@@ -42,8 +44,14 @@ int main(int argc, char **argv)
 
     while(1) {
         //while we have a connection we must do stuff
+        clientlen = sizeof(clientaddr);
+        connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
+        //doit(fonnfd);
+        //Close(connfd);
+
     }
 
+    Close(listenfd);
 
     exit(0);
 }
