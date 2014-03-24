@@ -12,6 +12,9 @@
 
 #include "csapp.h"
 
+ //we need to point to a logfile, TODO implement
+ FILE *logfile;
+
 /*
  * Function prototypes
  */
@@ -23,12 +26,24 @@ void format_log_entry(char *logstring, struct sockaddr_in *sockaddr, char *uri, 
  */
 int main(int argc, char **argv)
 {
-
+    int listenfd, connfd, port;
+    socklen_t clientlen;
+    struct sockaddr_in clientaddr;
     /* Check arguments */
     if (argc != 2) {
-	fprintf(stderr, "Usage: %s <port number>\n", argv[0]);
-	exit(0);
+	   fprintf(stderr, "Usage: %s <port number>\n", argv[0]);
+	   exit(0);
     }
+    //port number from input
+    port = atoi(argv[1]);
+
+    //call open listenfd to listen for the connection
+    listenfd = Open_listenfd(port);
+
+    while(1) {
+        //while we have a connection we must do stuff
+    }
+
 
     exit(0);
 }
@@ -50,8 +65,8 @@ int parse_uri(char *uri, char *hostname, char *pathname, int *port)
     int len;
 
     if (strncasecmp(uri, "http://", 7) != 0) {
-	hostname[0] = '\0';
-	return -1;
+	   hostname[0] = '\0';
+	   return -1;
     }
        
     /* Extract the host name */
@@ -64,16 +79,16 @@ int parse_uri(char *uri, char *hostname, char *pathname, int *port)
     /* Extract the port number */
     *port = 80; /* default */
     if (*hostend == ':')   
-	*port = atoi(hostend + 1);
+	   *port = atoi(hostend + 1);
     
     /* Extract the path */
     pathbegin = strchr(hostbegin, '/');
     if (pathbegin == NULL) {
-	pathname[0] = '\0';
+	   pathname[0] = '\0';
     }
     else {
-	pathbegin++;	
-	strcpy(pathname, pathbegin);
+	   pathbegin++;	
+	   strcpy(pathname, pathbegin);
     }
 
     return 0;
