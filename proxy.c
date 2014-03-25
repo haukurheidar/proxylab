@@ -35,9 +35,10 @@ int main(int argc, char **argv)
     
      void echo(int connfd);
      int port = atoi(argv[1]);
-     int clientfd,sport,serverfd,siz;
+     int clientfd,sport,serverfd,size;
      rio_t rio, rio2;
      size_t n;
+     char log[MAXLINE];
 
      int listenSocket;   // File descriptor for listening server socket
      int activeSocket;   // File descriptoir for the active socket
@@ -103,14 +104,22 @@ int main(int argc, char **argv)
                 }
             }
 
-        /*Read server response and send it to the client, keep track of the size of the response*/
+            /*Read server response and send it to the client, keep track of the size of the response*/
             while((n = Rio_readlineb(&rio2, buf, MAXLINE)) != 0) {
                 Rio_writen(connfd, buf, n);
-                siz = sizeof(n)+siz;
+                size = sizeof(n)+size;
 
                 }
-    /*Log to proxy.log*/
-            format_log_entry(&logstring, (struct sockaddr_in *)&sockaddr, uri, siz);
+            /*Log to proxy.log*/
+            format_log_entry(&logstring, (struct sockaddr_in *)&sockaddr, uri, size);
+            //open log file for appending
+            logfile = fopen("proxy.log", "a");
+            //now we print requests
+            fprintf(logfile, "%s %d\n,", log, size);
+            //TODO finish ip logging
+            fflush(logfile);
+
+
             Close(serverfd);
             Close(connfd);
     }
