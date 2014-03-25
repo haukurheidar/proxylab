@@ -2,8 +2,8 @@
  * proxy.c - CS:APP Web proxy
  *
  * TEAM MEMBERS:
- *     Batman, ac00@cs.cmu.edu 
- *     HRobin, bovik@cs.cmu.edu
+ *     Andrew Carnegie, ac00@cs.cmu.edu 
+ *     Harry Q. Bovik, bovik@cs.cmu.edu
  * 
  * IMPORTANT: Give a high level description of your code here. You
  * must also provide a header comment at the beginning of each
@@ -11,6 +11,8 @@
  */ 
 
 #include "csapp.h"
+
+FILE *logfile;
 
 /*
  * Function prototypes
@@ -58,7 +60,7 @@ int main(int argc, char **argv)
      serverAdd.sin_port = htons(port);
      serverAdd.sin_addr.s_addr = htonl(INADDR_ANY);
 
-    // Setup TCP listenSocket: (domain = AF_INET, type = SOCK_STREAM, protocol = 0)
+// Setup TCP listenSocket: (domain = AF_INET, type = SOCK_STREAM, protocol = 0)
     listenSocket = socket(AF_INET, SOCK_STREAM, 0);
     if(listenSocket < 0){
         printf("Error creating socket\n");
@@ -94,23 +96,23 @@ int main(int argc, char **argv)
         Rio_writen(serverfd, buf, strlen(buf));
 
         /*Read request from client*/
-        while(Rio_readlineb(&rio, buf, MAXLINE) != 0) {
-            Rio_writen(serverfd, buf, strlen(buf));
-            if (strcmp(buf, "\r\n") == 0) {
+            while(Rio_readlineb(&rio, buf, MAXLINE) != 0) {
+                Rio_writen(serverfd, buf, strlen(buf));
+                if (strcmp(buf, "\r\n") == 0) {
                 break;
+                }
             }
-        }
 
         /*Read server response and send it to the client, keep track of the size of the response*/
-        while((n = Rio_readlineb(&rio2, buf, MAXLINE)) != 0) {
-            Rio_writen(connfd, buf, n);
-            siz = sizeof(n)+siz;
+            while((n = Rio_readlineb(&rio2, buf, MAXLINE)) != 0) {
+                Rio_writen(connfd, buf, n);
+                siz = sizeof(n)+siz;
 
-        }
-
-        format_log_entry(&logstring, (struct sockaddr_in *)&sockaddr, uri, siz);
-        Close(serverfd);
-        Close(connfd);
+                }
+    /*Log to proxy.log*/
+            format_log_entry(&logstring, (struct sockaddr_in *)&sockaddr, uri, siz);
+            Close(serverfd);
+            Close(connfd);
     }
     Close(connfd);
     exit(0);
@@ -123,7 +125,7 @@ void doit(int fd)
     char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
     char filename[MAXLINE], cgiargs[MAXLINE];
     rio_t rio;
-    /*
+/*
     //rio_readinitb(&rio, fd);
     rio_readlineb(&rio, buf, MAXLINE);                   //line:netp:doit:readrequest
     sscanf(buf, "%s %s %s", method, uri, version);       //line:netp:doit:parserequest
