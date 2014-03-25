@@ -147,47 +147,29 @@ void get_http(int connfd)
     rio_t rio, rio_host;
     struct stat sbuf;
 
-    //from tiny.c
-        /* Read request line and headers */
-    Rio_readinitb(&rio, fd);
-    Rio_readlineb(&rio, buf, MAXLINE);                   //line:netp:doit:readrequest
-    sscanf(buf, "%s %s %s", method, uri, version);       //line:netp:doit:parserequest
-    if (strcasecmp(method, "GET")) {                     //line:netp:doit:beginrequesterr
-       clienterror(fd, method, "501", "Not Implemented",
-                "Tiny does not implement this method");
-        return;
-    }                                                    //line:netp:doit:endrequesterr
-    read_requesthdrs(&rio);                              //line:netp:doit:readrequesthdrs
-
-    /* Parse URI from GET request */
-    is_static = parse_uri(uri, filename, cgiargs);       //line:netp:doit:staticcheck
-    if (stat(filename, &sbuf) < 0) {                     //line:netp:doit:beginnotfound
-    clienterror(fd, filename, "404", "Not found",
-            "Tiny couldn't find this file");
-    return;
-    }                                                    //line:netp:doit:endnotfound
-
-    if (is_static) { /* Serve static content */          
-    if (!(S_ISREG(sbuf.st_mode)) || !(S_IRUSR & sbuf.st_mode)) { //line:netp:doit:readable
-        clienterror(fd, filename, "403", "Forbidden",
-            "Tiny couldn't read the file");
-        return;
-    }
-    serve_static(fd, filename, sbuf.st_size);        //line:netp:doit:servestatic
-    }
-    else { /* Serve dynamic content */
-    if (!(S_ISREG(sbuf.st_mode)) || !(S_IXUSR & sbuf.st_mode)) { //line:netp:doit:executable
-        clienterror(fd, filename, "403", "Forbidden",
-            "Tiny couldn't run the CGI program");
-        return;
-    }
-    serve_dynamic(fd, filename, cgiargs);            //line:netp:doit:servedynamic
+    while(1){
+        //TODO check tiny.c logic
     }
 
-
-
+    
 
 
     return;
 }
 
+/*
+ * read_requesthdrs - read and parse HTTP request headers
+ */
+/* $begin read_requesthdrs */
+void read_requesthdrs(rio_t *rp) 
+{
+    char buf[MAXLINE];
+
+    Rio_readlineb(rp, buf, MAXLINE);
+    while(strcmp(buf, "\r\n")) {          //line:netp:readhdrs:checkterm
+    Rio_readlineb(rp, buf, MAXLINE);
+    printf("%s", buf);
+    }
+    return;
+}
+/* $end read_requesthdrs */
