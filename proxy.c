@@ -3,7 +3,7 @@
  *
  * TEAM MEMBERS:
  *     Batman, ac00@cs.cmu.edu 
- *     Robin, bovik@cs.cmu.edu
+ *     HRobin, bovik@cs.cmu.edu
  * 
  * IMPORTANT: Give a high level description of your code here. You
  * must also provide a header comment at the beginning of each
@@ -12,53 +12,127 @@
 
 #include "csapp.h"
 
- //we need to point to a logfile, TODO implement
- FILE *logfile;
-
 /*
  * Function prototypes
  */
-void get_http(int connfd);
+void doit(int fd);
+void clienterror(int fd, char *cause, char *errnum, 
+		 char *shortmsg, char *longmsg);
+
 int parse_uri(char *uri, char *target_addr, char *path, int  *port);
 void format_log_entry(char *logstring, struct sockaddr_in *sockaddr, char *uri, int size);
 
+struct sockaddr_in clientaddr;
+struct sockaddr_in sockaddr;    
+int listenfd, connfd, port, *connfdp, clientlen;
 /* 
  * main - Main routine for the proxy program 
  */
 int main(int argc, char **argv)
 {
-    int listenfd, connfd, port;
-    socklen_t clientlen;
-    struct sockaddr_in clientaddr;
+    
+     void echo(int connfd);
+     int port = atoi(argv[1]);
+     int clientfd,sport,serverfd,siz;
+     rio_t rio, rio2;
+     size_t n;
+
+     int listenSocket;   // File descriptor for listening server socket
+     int activeSocket;   // File descriptoir for the active socket
+
+     struct sockaddr_in serverAdd;   
+     struct sockaddr_in clientAdd;
+
     /* Check arguments */
+     char *host, buf[MAXLINE], method[16], uri[MAXLINE], path[MAXLINE], logstring; 
     if (argc != 2) {
 	   fprintf(stderr, "Usage: %s <port number>\n", argv[0]);
 	   exit(0);
     }
-    //call Fopen for our logfile
-    logfile = Fopen("proxy.log"); //todo mode?
-    //port number from input
-    port = atoi(argv[1]);
 
-    //call open listenfd to listen for the connection
-    listenfd = Open_listenfd(port);
+    host = argv[0];
 
-    while(1) {
-        //while we have a connection we must do stuff
-        clientlen = sizeof(clientaddr);
-        connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
-        get_http(connfd);
-        //doit(fonnfd);
-        //Close(connfd);
+    // Initialize serverAdd struct
+     memset(&serverAdd, 0, sizeof(serverAdd));
+     serverAdd.sin_family = AF_INET;
+     serverAdd.sin_port = htons(port);
+     serverAdd.sin_addr.s_addr = htonl(INADDR_ANY);
 
+    // Setup TCP listenSocket: (domain = AF_INET, type = SOCK_STREAM, protocol = 0)
+    listenSocket = socket(AF_INET, SOCK_STREAM, 0);
+    if(listenSocket < 0){
+        printf("Error creating socket\n");
+        exit(1);
     }
 
-    Close(listenfd);
+    // listenfd = Open_listenfd(port);
+    clientfd = open_listenfd(port);
+    while (1) {
+        // clientlen = sizeof(clientaddr);
+        // connfd = Malloc(sizeof(int));
+        // connfdp = Accept(listenfd, (SA *)&clientaddr, &clientlen);
+        connfd = Accept(clientfd, (SA *)&clientaddr, &clientlen);
+        printf("sockaddr is %s\n", sockaddr);
+        // doit(connfd);
+        // Pthread_create(&tid, NULL, thread, connfdp);
+    
+        /*Read request from client*/
+        rio_readinitb(&rio, connfd);
+        rio_readlineb(&rio, buf, MAXLINE);
 
+        /*Get the method (GET) and the uri (http://bla.com/)*/
+        sscanf(buf, "%s %s", method, uri);
+
+        /*Parse the uri to get the host, pathname and port*/
+        parse_uri(uri, host, path, &sport);
+
+        /*Open connection to end server*/
+        serverfd = Open_clientfd(host, sport);
+
+        /*Read first line in server response*/
+        Rio_readinitb(&rio2, serverfd);
+        Rio_writen(serverfd, buf, strlen(buf));
+
+        /*Read request from client*/
+        while(Rio_readlineb(&rio, buf, MAXLINE) != 0) {
+            Rio_writen(serverfd, buf, strlen(buf));
+            if (strcmp(buf, "\r\n") == 0) {
+                break;
+            }
+        }
+
+        /*Read server response and send it to the client, keep track of the size of the response*/
+        while((n = Rio_readlineb(&rio2, buf, MAXLINE)) != 0) {
+            Rio_writen(connfd, buf, n);
+            siz = sizeof(n)+siz;
+
+        }
+
+        format_log_entry(&logstring, (struct sockaddr_in *)&sockaddr, uri, siz);
+        Close(serverfd);
+        Close(connfd);
+    }
+    Close(connfd);
     exit(0);
 }
 
-
+void doit(int fd)
+{
+	int is_static;
+    struct stat sbuf;
+    char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
+    char filename[MAXLINE], cgiargs[MAXLINE];
+    rio_t rio;
+    /*
+    //rio_readinitb(&rio, fd);
+    rio_readlineb(&rio, buf, MAXLINE);                   //line:netp:doit:readrequest
+    sscanf(buf, "%s %s %s", method, uri, version);       //line:netp:doit:parserequest
+    if (strcasecmp(method, "GET")) {                     //line:netp:doit:beginrequesterr
+       clienterror(fd, method, "501", "Not Implemented",
+                "Tiny does not implement this method");
+       return;
+    }*/
+}
 /*
  * parse_uri - URI parser
  * 
@@ -67,6 +141,7 @@ int main(int argc, char **argv)
  * pathname must already be allocated and should be at least MAXLINE
  * bytes. Return -1 if there are any problems.
  */
+
 int parse_uri(char *uri, char *hostname, char *pathname, int *port)
 {
     char *hostbegin;
@@ -90,9 +165,9 @@ int parse_uri(char *uri, char *hostname, char *pathname, int *port)
     *port = 80; /* default */
     if (*hostend == ':')   
 	   *port = atoi(hostend + 1);
-    
-    /* Extract the path */
-    pathbegin = strchr(hostbegin, '/');
+        printf("port is %d\n",port);    
+        /* Extract the path */
+        pathbegin = strchr(hostbegin, '/');
     if (pathbegin == NULL) {
 	   pathname[0] = '\0';
     }
@@ -114,6 +189,7 @@ int parse_uri(char *uri, char *hostname, char *pathname, int *port)
 void format_log_entry(char *logstring, struct sockaddr_in *sockaddr, 
 		      char *uri, int size)
 {
+    FILE *fp;
     time_t now;
     char time_str[MAXLINE];
     unsigned long host;
@@ -121,6 +197,7 @@ void format_log_entry(char *logstring, struct sockaddr_in *sockaddr,
 
     /* Get a formatted time string */
     now = time(NULL);
+
     strftime(time_str, MAXLINE, "%a %d %b %Y %H:%M:%S %Z", localtime(&now));
 
     /* 
@@ -134,42 +211,14 @@ void format_log_entry(char *logstring, struct sockaddr_in *sockaddr,
     b = (host >> 16) & 0xff;
     c = (host >> 8) & 0xff;
     d = host & 0xff;
+    /* Return the formatted log entry string */
+    fp=fopen("proxy.log", "a");
+
+    fprintf(fp, "%s: %d.%d.%d.%d %s - %d \n", time_str, a, b, c, d, uri, size);
+    fclose(fp);
 
 
     /* Return the formatted log entry string */
-    sprintf(logstring, "%s: %d.%d.%d.%d %s", time_str, a, b, c, d, uri);
+    sprintf(logstring, "%s: %d.%d.%d.%d %s %d", time_str, a, b, c, d, uri, size);
 }
 
-void get_http(int connfd)
-{
-    char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
-    char log_entry[MAXLINE], hostname[MAXLINE], pathname[MAXLINE];
-    rio_t rio, rio_host;
-    struct stat sbuf;
-
-    while(1){
-        //TODO check tiny.c logic
-    }
-
-    
-
-
-    return;
-}
-
-/*
- * read_requesthdrs - read and parse HTTP request headers
- */
-/* $begin read_requesthdrs */
-void read_requesthdrs(rio_t *rp) 
-{
-    char buf[MAXLINE];
-
-    Rio_readlineb(rp, buf, MAXLINE);
-    while(strcmp(buf, "\r\n")) {          //line:netp:readhdrs:checkterm
-    Rio_readlineb(rp, buf, MAXLINE);
-    printf("%s", buf);
-    }
-    return;
-}
-/* $end read_requesthdrs */
