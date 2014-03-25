@@ -18,6 +18,7 @@
 /*
  * Function prototypes
  */
+void get_http(int connfd);
 int parse_uri(char *uri, char *target_addr, char *path, int  *port);
 void format_log_entry(char *logstring, struct sockaddr_in *sockaddr, char *uri, int size);
 
@@ -35,7 +36,7 @@ int main(int argc, char **argv)
 	   exit(0);
     }
     //call Fopen for our logfile
-    logfile = Fopen("proxy.log") //todo mode?
+    logfile = Fopen("proxy.log"); //todo mode?
     //port number from input
     port = atoi(argv[1]);
 
@@ -46,6 +47,7 @@ int main(int argc, char **argv)
         //while we have a connection we must do stuff
         clientlen = sizeof(clientaddr);
         connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
+        get_http(connfd);
         //doit(fonnfd);
         //Close(connfd);
 
@@ -138,4 +140,54 @@ void format_log_entry(char *logstring, struct sockaddr_in *sockaddr,
     sprintf(logstring, "%s: %d.%d.%d.%d %s", time_str, a, b, c, d, uri);
 }
 
+void get_http(int connfd)
+{
+    char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
+    char log_entry[MAXLINE], hostname[MAXLINE], pathname[MAXLINE];
+    rio_t rio, rio_host;
+    struct stat sbuf;
+
+    //from tiny.c
+        /* Read request line and headers */
+    Rio_readinitb(&rio, fd);
+    Rio_readlineb(&rio, buf, MAXLINE);                   //line:netp:doit:readrequest
+    sscanf(buf, "%s %s %s", method, uri, version);       //line:netp:doit:parserequest
+    if (strcasecmp(method, "GET")) {                     //line:netp:doit:beginrequesterr
+       clienterror(fd, method, "501", "Not Implemented",
+                "Tiny does not implement this method");
+        return;
+    }                                                    //line:netp:doit:endrequesterr
+    read_requesthdrs(&rio);                              //line:netp:doit:readrequesthdrs
+
+    /* Parse URI from GET request */
+    is_static = parse_uri(uri, filename, cgiargs);       //line:netp:doit:staticcheck
+    if (stat(filename, &sbuf) < 0) {                     //line:netp:doit:beginnotfound
+    clienterror(fd, filename, "404", "Not found",
+            "Tiny couldn't find this file");
+    return;
+    }                                                    //line:netp:doit:endnotfound
+
+    if (is_static) { /* Serve static content */          
+    if (!(S_ISREG(sbuf.st_mode)) || !(S_IRUSR & sbuf.st_mode)) { //line:netp:doit:readable
+        clienterror(fd, filename, "403", "Forbidden",
+            "Tiny couldn't read the file");
+        return;
+    }
+    serve_static(fd, filename, sbuf.st_size);        //line:netp:doit:servestatic
+    }
+    else { /* Serve dynamic content */
+    if (!(S_ISREG(sbuf.st_mode)) || !(S_IXUSR & sbuf.st_mode)) { //line:netp:doit:executable
+        clienterror(fd, filename, "403", "Forbidden",
+            "Tiny couldn't run the CGI program");
+        return;
+    }
+    serve_dynamic(fd, filename, cgiargs);            //line:netp:doit:servedynamic
+    }
+
+
+
+
+
+    return;
+}
 
