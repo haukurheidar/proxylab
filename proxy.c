@@ -19,6 +19,9 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longms
 void format_log_entry(char *logstring, struct sockaddr_in *sockaddr, char *uri, int size);
 
 struct sockaddr_in clientaddr;
+//log file
+FILE *proxylog;
+
 
 int main(int argc, char **argv)
 {
@@ -34,6 +37,9 @@ int main(int argc, char **argv)
 
     port = atoi(argv[1]);
 
+    //open and make log file
+    proxylog = Fopen("proxy.log", "w");
+    proxylog = Fopen("proxy.log", "a");
 
     listenfd = Open_listenfd(port);
     while (1)
@@ -49,6 +55,7 @@ int main(int argc, char **argv)
 			break;
 		}
     }
+    Fclose(proxylog);
 
     return 0;
 }
@@ -99,9 +106,14 @@ void doit(int clientfd)
      Close(serverfd);
 
      /* Log */
+
      char logstring[MAXLINE];
      format_log_entry(logstring, &clientaddr, uri, serverResponseSize);
+     fprintf(proxylog, "%s %d\n", logstring, serverResponseSize);
+
      //This should log to a file
+
+
      printf("%s\n", logstring);
 }
 /* $end doit */
