@@ -2,8 +2,9 @@
  * proxy.c - CS:APP Web proxy
  *
  * TEAM MEMBERS:
- *     Andrew Carnegie, ac00@cs.cmu.edu
- *     Harry Q. Bovik, bovik@cs.cmu.edu
+ *     Brynjar Ýmir Birgisson, brynjarb06@ru.is
+ *     Haukur Heiðar Leifsson, haukurl11@ru.is
+*      Randver Pálmi Gyðusson, randver10@ru.is
  *
  * IMPORTANT: Give a high level description of your code here. You
  * must also provide a header comment at the beginning of each
@@ -76,7 +77,7 @@ void *thread(void *vargp)
 
     // Make read timeout after 1 sec if there is nothing to read on socket
     struct timeval t;
-    t.tv_sec = 1; t.tv_usec = 0;
+    t.tv_sec = 0.1; t.tv_usec = 0;
     setsockopt(ts->fd, SOL_SOCKET, SO_RCVTIMEO, (const void *)(&t), sizeof(t));
 
     doit(ts->fd,  &ts->clientaddr);
@@ -101,13 +102,6 @@ void doit(int clientfd, struct sockaddr_in *sockaddr)
     Rio_readinitb(&rioClient, clientfd);
     Rio_readlineb(&rioClient, buf, MAXLINE);
     sscanf(buf, "%s %s %s", method, uri, version);
-
-    /* Lets support GET */
-    //if (strcasecmp(method, "GET"))
-    //{
-    	//clienterror(clientfd, method, "501", "Not Implemented", "method not supported");
-        //return;
-    //}
 
     /* Parse URI from request */
     char host[MAXLINE], path[MAXLINE];
