@@ -6,9 +6,12 @@
  *     Haukur Heiðar Leifsson, haukurl11@ru.is
 *      Randver Pálmi Gyðusson, randver10@ru.is
  *
- * IMPORTANT: Give a high level description of your code here. You
- * must also provide a header comment at the beginning of each
- * function that describes what that function does.
+ * This is our proxy server. We pass threads through struct. 
+ * This was built upon tiny.c, it was implimented in the way that
+ * the project description was set up to be, first we implemented
+ * basic proxy server with logging and then added threads. 
+ * there is a 0.1 second timeout on socket requests if there is nothing to read.
+ * We also print out requests. 
  */
 
 #include "csapp.h"
@@ -36,8 +39,8 @@ pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int main(int argc, char **argv)
 {
-    //int listenfd, connfd, port, clientlen;
-    int listenfd, port, clientlen;
+    int listenfd, port;
+    socklen_t clientlen;
     signal(SIGPIPE, SIG_IGN);
     /* thread id*/
     pthread_t tid;
@@ -86,7 +89,7 @@ void *thread(void *vargp)
     Close(ts->fd);
     Free(ts);    
 
-    return;
+    return NULL;
 }
 
 /*
@@ -102,6 +105,7 @@ void doit(int clientfd, struct sockaddr_in *sockaddr)
     Rio_readinitb(&rioClient, clientfd);
     Rio_readlineb(&rioClient, buf, MAXLINE);
     sscanf(buf, "%s %s %s", method, uri, version);
+    printf("%s", buf);
 
     /* Parse URI from request */
     char host[MAXLINE], path[MAXLINE];
@@ -114,11 +118,11 @@ void doit(int clientfd, struct sockaddr_in *sockaddr)
     int serverResponseSize;
     int serverfd;
     serverfd = Open_clientfd(host, serverPort);
-    // Make read timeout after 1 sec if there is nothing to read on socket
+    // Make read timeout after 4 sec if there is nothing to read on socket
     struct timeval t;
     t.tv_sec = 4; t.tv_usec = 0;
     setsockopt(serverfd, SOL_SOCKET, SO_RCVTIMEO, (const void *)(&t), sizeof(t));
-
+    
     /* Initialize rioServer and send headers */
      Rio_readinitb(&rioServer, serverfd);
      Rio_writen(serverfd, buf, strlen(buf));
