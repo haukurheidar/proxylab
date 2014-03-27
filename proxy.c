@@ -18,11 +18,9 @@ int parse_uri(char *uri, char *target_addr, char *path, int *port);
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
 void format_log_entry(char *logstring, struct sockaddr_in *sockaddr, char *uri, int size);
 
-
 /* thread routine protocol */
 void *thread(void* vargp);
 
-// moved to struct_strct : struct sockaddr_in clientaddr;
 //log file
 FILE *proxylog;
 
@@ -30,21 +28,19 @@ FILE *proxylog;
 typedef struct {
     int fd;
     struct sockaddr_in clientaddr;
-
 } thread_strct;
 
+/* Mutex used to lock before writing to common log file */
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int main(int argc, char **argv)
 {
     //int listenfd, connfd, port, clientlen;
     int listenfd, port, clientlen;
-    struct sockaddr_in clientaddr;
     signal(SIGPIPE, SIG_IGN);
     /* thread id*/
     pthread_t tid;
     
-
-
     /* Check command line args */
     if (argc != 2)
     {
@@ -60,58 +56,38 @@ int main(int argc, char **argv)
     listenfd = Open_listenfd(port);
     while (1)
     {
-        /* comment out old logic, keepsafe
-		clientlen = sizeof(clientaddr);
-		connfd = Accept(listenfd, (SA *)&clientaddr, (socklen_t*)&clientlen);
-		if ( fork() == 0 ) { // Use threads instead of a fork
-			struct timeval t;
-			t.tv_sec = 1; t.tv_usec = 0;
-			setsockopt(connfd, SOL_SOCKET, SO_RCVTIMEO, (const void *)(&t), sizeof(t));
-			doit(connfd);
-			Close(connfd);
-			break;
-		}
-        */
         thread_strct *ts;
-        clientlen = sizeof(clientaddr);
+        clientlen = sizeof(ts->clientaddr);
         ts = Malloc(sizeof(thread_strct));
-        ts->fd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
+        ts->fd = Accept(listenfd, (SA *)&ts->clientaddr, &clientlen);
         Pthread_create(&tid, NULL, thread, ts);
-        //doit(connfd);
-        //Close(connfd);
-        break;
-
     }
     Close(listenfd);
     Fclose(proxylog);
 
     return 0;
 }
-/* $end tinymain */
 
 void *thread(void *vargp)
 {
-    /*
-    int connfd = *((int *)vargp);
-    Pthread_detach(pthread_self);
-    Free(vargp);
-    doit(connfd);
-    Close(connfd);
-    */
-    int connfd;
     thread_strct *ts = (thread_strct*)vargp;
-    struct sockaddr_in clientaddr;
-
-    connfd = ts->fd;
-    clientaddr = ts->clientaddr;
+ 
     Pthread_detach(pthread_self);
-    Free(vargp);
-    doit(connfd,  &clientaddr);
-    Close(connfd);
+
+    // Make read timeout after 1 sec if there is nothing to read on socket
+    struct timeval t;
+    t.tv_sec = 1; t.tv_usec = 0;
+    setsockopt(ts->fd, SOL_SOCKET, SO_RCVTIMEO, (const void *)(&t), sizeof(t));
+
+    doit(ts->fd,  &ts->clientaddr);
+
+    // Close the client connection and free memmory
+    Close(ts->fd);
+    Free(ts);    
 
     return;
-
 }
+
 /*
  * doit - handle one HTTP request/response transaction
  */
@@ -120,17 +96,18 @@ void doit(int clientfd, struct sockaddr_in *sockaddr)
 {
     char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
     rio_t rioClient, rioServer;
-    struct sockaddr_in *addr = sockaddr;
 
     /* Read request line and headers */
     Rio_readinitb(&rioClient, clientfd);
     Rio_readlineb(&rioClient, buf, MAXLINE);
     sscanf(buf, "%s %s %s", method, uri, version);
-    if (strcasecmp(method, "GET"))
-    {
-    	clienterror(clientfd, method, "501", "Not Implemented", "does not implement this method");
+
+    /* Lets support GET */
+    //if (strcasecmp(method, "GET"))
+    //{
+    	//clienterror(clientfd, method, "501", "Not Implemented", "method not supported");
         //return;
-    }
+    //}
 
     /* Parse URI from request */
     char host[MAXLINE], path[MAXLINE];
@@ -143,6 +120,7 @@ void doit(int clientfd, struct sockaddr_in *sockaddr)
     int serverResponseSize;
     int serverfd;
     serverfd = Open_clientfd(host, serverPort);
+    // Make read timeout after 1 sec if there is nothing to read on socket
     struct timeval t;
     t.tv_sec = 4; t.tv_usec = 0;
     setsockopt(serverfd, SOL_SOCKET, SO_RCVTIMEO, (const void *)(&t), sizeof(t));
@@ -157,39 +135,35 @@ void doit(int clientfd, struct sockaddr_in *sockaddr)
      /* Close the connection with server */
      Close(serverfd);
 
-     /* Log */
-
+     /* Log request */
      char logstring[MAXLINE];
-     format_log_entry(logstring, addr, uri, serverResponseSize);
+     format_log_entry(logstring, sockaddr, uri, serverResponseSize);
+     pthread_mutex_lock(&mutex); // lock before writing to common file
      fprintf(proxylog, "%s %d\n", logstring, serverResponseSize);
-
-     //This should log to a file
-
-
-     printf("%s\n", logstring);
+     pthread_mutex_unlock(&mutex); // unlock after writing to file
 }
 /* $end doit */
 
 void send_requestResponse(rio_t *rio_server, int serverfd, rio_t *rio_client, int clientfd, int *size)
 {
-	*size = 0;
+    *size = 0;
     char clientBuf[MAXLINE], serverBuf[MAXLINE];
 
-	/*Read request from client*/
+    /*Read request from client*/
     long int clientN = 0;
-	while((clientN = rio_readlineb(rio_client, clientBuf, MAXLINE)) > 0) {
+    while((clientN = rio_readlineb(rio_client, clientBuf, MAXLINE)) > 0) {
 		Rio_writen(serverfd, clientBuf, clientN);
 		if (strcmp(clientBuf, "\r\n") == 0) {
 			break;
 		}
-	}
+    }
 
-	/*Read response from server and send to client*/
-	long int serverN = 0;
-	while((serverN = rio_readlineb(rio_server, serverBuf, (MAXLINE-1))) > 0) {
+    /*Read response from server and send to client*/
+    long int serverN = 0;
+    while((serverN = rio_readlineb(rio_server, serverBuf, (MAXLINE-1))) > 0) {
 		Rio_writen(clientfd, serverBuf, serverN);
 		*size += serverN;
-	}
+    }
 
     return;
 }
@@ -251,11 +225,11 @@ void clienterror(int fd, char *cause, char *errnum,
     char buf[MAXLINE], body[MAXBUF];
 
     /* Build the HTTP response body */
-    sprintf(body, "<html><title>Tiny Error</title>");
+    sprintf(body, "<html><title>Error</title>");
     sprintf(body, "%s<body bgcolor=""ffffff"">\r\n", body);
     sprintf(body, "%s%s: %s\r\n", body, errnum, shortmsg);
     sprintf(body, "%s<p>%s: %s\r\n", body, longmsg, cause);
-    sprintf(body, "%s<hr><em>The Tiny Web server</em>\r\n", body);
+    sprintf(body, "%s<hr><em>Web server</em>\r\n", body);
 
     /* Print the HTTP response */
     sprintf(buf, "HTTP/1.0 %s %s\r\n", errnum, shortmsg);
