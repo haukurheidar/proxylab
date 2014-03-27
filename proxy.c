@@ -56,7 +56,6 @@ int main(int argc, char **argv)
     listenfd = Open_listenfd(port);
     while (1)
     {
-        printf("threading");
         thread_strct *ts;
         clientlen = sizeof(ts->clientaddr);
         ts = Malloc(sizeof(thread_strct));
