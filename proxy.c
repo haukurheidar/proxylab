@@ -103,6 +103,7 @@ void *thread(void *vargp)
     struct sockaddr_in clientaddr;
 
     connfd = ts->fd;
+    clientaddr = ts->clientaddr;
     Pthread_detach(pthread_self);
     Free(vargp);
     doit(connfd,  &clientaddr);
