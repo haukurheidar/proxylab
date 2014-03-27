@@ -12,21 +12,38 @@
 
 #include "csapp.h"
 
-void doit(int clientfd);
+void doit(int clientfd, struct sockaddr_in *sockaddr);
 void send_requestResponse(rio_t *rio_server, int serverfd, rio_t *rio_client, int clientfd, int *size);
 int parse_uri(char *uri, char *target_addr, char *path, int *port);
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
 void format_log_entry(char *logstring, struct sockaddr_in *sockaddr, char *uri, int size);
 
-struct sockaddr_in clientaddr;
+
+/* thread routine protocol */
+void *thread(void* vargp);
+
+// moved to struct_strct : struct sockaddr_in clientaddr;
 //log file
 FILE *proxylog;
+
+/* thread routines kept in a struct */
+typedef struct {
+    int fd;
+    struct sockaddr_in clientaddr;
+
+} thread_strct;
 
 
 int main(int argc, char **argv)
 {
-    int listenfd, connfd, port, clientlen;
-    //struct sockaddr_in clientaddr;
+    //int listenfd, connfd, port, clientlen;
+    int listenfd, port, clientlen;
+    struct sockaddr_in clientaddr;
+    signal(SIGPIPE, SIG_IGN);
+    /* thread id*/
+    pthread_t tid;
+    
+
 
     /* Check command line args */
     if (argc != 2)
@@ -38,12 +55,12 @@ int main(int argc, char **argv)
     port = atoi(argv[1]);
 
     //open and make log file
-    proxylog = Fopen("proxy.log", "w");
     proxylog = Fopen("proxy.log", "a");
 
     listenfd = Open_listenfd(port);
     while (1)
     {
+        /* comment out old logic, keepsafe
 		clientlen = sizeof(clientaddr);
 		connfd = Accept(listenfd, (SA *)&clientaddr, (socklen_t*)&clientlen);
 		if ( fork() == 0 ) { // Use threads instead of a fork
@@ -54,21 +71,55 @@ int main(int argc, char **argv)
 			Close(connfd);
 			break;
 		}
+        */
+        thread_strct *ts;
+        clientlen = sizeof(clientaddr);
+        ts = Malloc(sizeof(thread_strct));
+        ts->fd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
+        Pthread_create(&tid, NULL, thread, ts);
+        //doit(connfd);
+        //Close(connfd);
+        break;
+
     }
+    Close(listenfd);
     Fclose(proxylog);
 
     return 0;
 }
 /* $end tinymain */
 
+void *thread(void *vargp)
+{
+    /*
+    int connfd = *((int *)vargp);
+    Pthread_detach(pthread_self);
+    Free(vargp);
+    doit(connfd);
+    Close(connfd);
+    */
+    int connfd;
+    thread_strct *ts = (thread_strct*)vargp;
+    struct sockaddr_in clientaddr;
+
+    connfd = ts->fd;
+    Pthread_detach(pthread_self);
+    Free(vargp);
+    doit(connfd,  &clientaddr);
+    Close(connfd);
+
+    return;
+
+}
 /*
  * doit - handle one HTTP request/response transaction
  */
 /* $begin doit */
-void doit(int clientfd)
+void doit(int clientfd, struct sockaddr_in *sockaddr)
 {
     char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
     rio_t rioClient, rioServer;
+    struct sockaddr_in *addr = sockaddr;
 
     /* Read request line and headers */
     Rio_readinitb(&rioClient, clientfd);
@@ -108,7 +159,7 @@ void doit(int clientfd)
      /* Log */
 
      char logstring[MAXLINE];
-     format_log_entry(logstring, &clientaddr, uri, serverResponseSize);
+     format_log_entry(logstring, addr, uri, serverResponseSize);
      fprintf(proxylog, "%s %d\n", logstring, serverResponseSize);
 
      //This should log to a file
