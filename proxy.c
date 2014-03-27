@@ -56,6 +56,7 @@ int main(int argc, char **argv)
     listenfd = Open_listenfd(port);
     while (1)
     {
+        printf("threading");
         thread_strct *ts;
         clientlen = sizeof(ts->clientaddr);
         ts = Malloc(sizeof(thread_strct));
@@ -72,7 +73,7 @@ void *thread(void *vargp)
 {
     thread_strct *ts = (thread_strct*)vargp;
  
-    Pthread_detach(pthread_self);
+    Pthread_detach(pthread_self());
 
     // Make read timeout after 1 sec if there is nothing to read on socket
     struct timeval t;
