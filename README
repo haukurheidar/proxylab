@@ -9,4 +9,8 @@ README		- This file
 proxy.{c,h}	- Primary proxy code
 csapp.{c,h}	- Wrapper and helper functions from the CS:APP text
 
+# Presented at RU 2.4.2014
+# Made public to make room for more private repos 2.4.2014
+# If RU staff wants this out then please contact me at haukurl11@ru.is
+
 
